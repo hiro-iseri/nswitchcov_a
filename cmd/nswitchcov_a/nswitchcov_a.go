@@ -6,7 +6,7 @@ import (
 	"os"
 	"reflect"
 	"regexp"
-
+	"flag"
 	"golang.org/x/text/encoding/japanese"
 	"golang.org/x/text/transform"
 )
@@ -19,6 +19,46 @@ const (
 	StatusText TextType = iota
 	EventText
 )
+
+
+func IncludePath(execPathSet [][]string, stateFlow []string) bool {
+	if len(stateFlow) == 0 {
+		return false
+	}
+	for _, execPath := range execPathSet {
+		if len(execPath) == 0 {
+			continue
+		}
+		for i := 0; i <= len(execPath) - len(stateFlow); i++ {
+			if reflect.DeepEqual(execPath[i:i + len(stateFlow)], stateFlow) {
+				fmt.Println("hit")
+				return true
+			}
+		}
+	}
+	return false
+}
+
+/*
+func main() {
+	var (
+		fpExePath = flag.String("exepath", "", "filepath of execution path list")
+		fpStateFlow = flag.String("stateflow", "", "filepath of stateflow")
+		encode = flag.String("encode", "", "encoding of input file")
+	)
+	flag.Parse()
+	execPath := [][]string{}
+	execPath = append(execPath, []string{"s1", "e1", "s2", "e2", "s3"})
+	execPath = append(execPath, []string{"s5", "e2", "s2"})
+	stateFlow := []string {"s2", "e2", "s3"}
+
+	fmt.Println(*fpExePath, *fpStateFlow, *encode)
+
+	fmt.Println(IncludePath(execPath, stateFlow))
+
+}
+*/
+
 
 func pickupWord(word string) string {
 	re, _ := regexp.Compile("^[\\s]+")
