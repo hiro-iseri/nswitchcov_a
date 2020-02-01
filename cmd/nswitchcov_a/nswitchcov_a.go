@@ -31,7 +31,6 @@ func includePath(execPathSet [][]string, stateFlow []string) bool {
 		}
 		for i := 0; i <= len(execPath)-len(stateFlow); i++ {
 			if reflect.DeepEqual(execPath[i:i+len(stateFlow)], stateFlow) {
-				fmt.Println("hit")
 				return true
 			}
 		}
@@ -43,15 +42,9 @@ func main() {
 	var (
 		fpExePath   = flag.String("exepath", "", "filepath of execution path list")
 		fpStateFlow = flag.String("stateflow", "", "filepath of stateflow")
-		encode      = flag.String("encode", "", "encoding of input file")
+		//charcode    = flag.String("charcode", "", "encoding of input file")
 	)
 	flag.Parse()
-
-	stateFlow, err := ReadStateFlow(*fpStateFlow)
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
 
 	execPath, err := ReadExecutionPath(*fpExePath)
 	if err != nil {
@@ -59,28 +52,39 @@ func main() {
 		os.Exit(1)
 	}
 
-	stateFlowPath := CreateNSwitchPathSet(stateFlow, 2)
+	stateFlowPath, err := ReadExecutionPath(*fpStateFlow)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+	stateFlowMap, _ := CreateStateFlowMap(stateFlowPath)
 
-	fmt.Println(stateFlowPath)
+	stateFlowPathSet := CreateNSwitchPathSet(stateFlowMap, 2)
+
+	fmt.Println("*******map*******")
+	fmt.Println(stateFlowMap)
+	fmt.Println("*******stateflow path*******")
+	fmt.Println(stateFlowPathSet)
+	fmt.Println("*******exec path*******")
 	fmt.Println(execPath)
 
-	sumNSwitchPath := len(stateFlowPath)
+	sumNSwitchPath := len(stateFlowPathSet)
 	lenExecPath := len(execPath)
 
-	fmt.Printf("number of execution path:%d", lenExecPath)
-	fmt.Printf("number of n-switch path:%d", sumNSwitchPath)
+	fmt.Printf("number of execution path:%d\n", lenExecPath)
+	fmt.Printf("number of n-switch path:%d\n", sumNSwitchPath)
 
 	sumCoveringPath := 0
 
-	for _, path := range stateFlowPath {
+	for _, path := range stateFlowPathSet {
 		if includePath(execPath, path) {
 			sumCoveringPath++
 		}
 	}
 
 	var coverage float64
-	coverage = float64(sumCoveringPath) / float64(sumNSwitchPath)
-	fmt.Printf("n-switch coverage:%f(%d/%d)", coverage, sumCoveringPath, sumNSwitchPath)
+	coverage = float64(sumCoveringPath) / float64(sumNSwitchPath) * 100.0
+	fmt.Printf("n-switch coverage:%.2f%%(%d/%d)\n", coverage, sumCoveringPath, sumNSwitchPath)
 }
 
 func pickupWord(word string) string {
@@ -101,7 +105,6 @@ func addFlowPath(output [][]string, addPath []string) [][]string {
 }
 
 func ReadExecutionPath(fileName string) ([][]string, error) {
-
 	fp, err := os.Open(fileName)
 	if err != nil {
 		panic(err)
@@ -110,7 +113,12 @@ func ReadExecutionPath(fileName string) ([][]string, error) {
 
 	exePath := [][]string{}
 
+	lineCount := 0
 	for sjisScanner.Scan() {
+		lineCount++
+		if lineCount >= 200 {
+			return nil, fmt.Errorf("File size limitation: maximum 200 lines:%s", fileName)
+		}
 		tempExePath := []string{}
 		targetText := sjisScanner.Text()
 		currentType := StatusText
@@ -121,38 +129,82 @@ func ReadExecutionPath(fileName string) ([][]string, error) {
 		for _, c := range targetText {
 			if c == '-' {
 				if currentType != StatusText {
-					fmt.Println("error")
+					return nil, fmt.Errorf("Error:Invalid Format in File(%s line %d)", fileName, lineCount)
 				}
 				currentType = EventText
-				tempExePath = append(tempExePath, pickupWord(word))
+				trimmedWord := pickupWord(word)
+				if len(trimmedWord) == 0 {
+					return nil, fmt.Errorf("Error:Empty Keyword(%s line %d)", fileName, lineCount)
+				}
+				tempExePath = append(tempExePath, pickupWord(trimmedWord))
+				word = ""
 				continue
 			}
 			if c == '>' {
 				if currentType != EventText {
-					fmt.Println("error")
+					return nil, fmt.Errorf("Error:Invalid Format in File(%s line %d)", fileName, lineCount)
 				}
 				currentType = StatusText
 				tempExePath = append(tempExePath, pickupWord(word))
+				word = ""
 				continue
 			}
 			word += string(c)
 		}
 
 		if currentType != StatusText {
-			fmt.Println("error")
+			return nil, fmt.Errorf("Error:Invalid Format in StateFlow File(%s line %d)", fileName, lineCount)
 		}
 		tempExePath = append(tempExePath, pickupWord(word))
 
 		exePath = append(exePath, tempExePath)
 	}
 
+	fmt.Println(exePath)
 	defer fp.Close()
 	return exePath, nil
 }
 
+// CreateStateFlowMap creates stateflow definition data from specified file
+func CreateStateFlowMap(flowpath [][]string) (map[State]map[Event]State, error) {
+	fmt.Println("************************************")
+	fmt.Println(flowpath)
+	fmt.Println("@@@")
+	stateMap := make(map[State]map[Event]State)
+
+	for _, targetText := range flowpath {
+		currentState := ""
+		currentEvent := ""
+		currentType := StatusText
+
+		for _, word := range targetText {
+			if currentType == StatusText {
+				currentType = EventText
+
+				if currentEvent != "" {
+					value, init := stateMap[State(currentState)]
+					if !init {
+						value = make(map[Event]State)
+					}
+					value[Event(currentEvent)] = State(word)
+					stateMap[State(currentState)] = value
+					currentEvent = ""
+				}
+				currentState = word
+			} else if currentType == EventText {
+				currentType = StatusText
+				currentEvent = word
+				continue
+			}
+		}
+	}
+	fmt.Println("************************************")
+
+	return stateMap, nil
+}
+
 // ReadStateFlow creates stateflow definition data from specified file
 func ReadStateFlow(fileName string) (map[State]map[Event]State, error) {
-
 	fp, err := os.Open(fileName)
 	if err != nil {
 		panic(err)
@@ -165,7 +217,7 @@ func ReadStateFlow(fileName string) (map[State]map[Event]State, error) {
 	for sjisScanner.Scan() {
 		lineCount++
 		if lineCount >= 200 {
-			return nil, fmt.Errorf("File size limitation: maximum 200 lines")
+			return nil, fmt.Errorf("File size limitation: maximum 200 lines:%s", fileName)
 		}
 		currentState := ""
 		currentEvent := ""
@@ -180,15 +232,15 @@ func ReadStateFlow(fileName string) (map[State]map[Event]State, error) {
 		for _, c := range targetText {
 			if c == '-' {
 				if currentType != StatusText {
-					return nil, fmt.Errorf("Error:Invalid Format in StateFlow File(line %d)", lineCount)
+					return nil, fmt.Errorf("Error:Invalid Format in File(%s line %d)", fileName, lineCount)
 				}
 				currentType = EventText
 				trimmedWord := pickupWord(word)
 				if len(trimmedWord) == 0 {
-					return nil, fmt.Errorf("Error:Empty Keyword(line %d)", lineCount)
+					return nil, fmt.Errorf("Error:Empty Keyword(%s line %d)", fileName, lineCount)
 				}
 				if currentState != "" {
-					value, init := stateMap[State(current_state)]
+					value, init := stateMap[State(currentState)]
 					if !init {
 						value = make(map[Event]State)
 					}
@@ -201,12 +253,12 @@ func ReadStateFlow(fileName string) (map[State]map[Event]State, error) {
 			}
 			if c == '>' {
 				if currentType != EventText {
-					return nil, fmt.Errorf("Error:Invalid Format in StateFlow File(line %d)", lineCount)
+					return nil, fmt.Errorf("Error:Invalid Format in File(%s line %d)", fileName, lineCount)
 				}
 				currentType = StatusText
 				currentEvent = pickupWord(word)
 				if len(currentEvent) == 0 {
-					return nil, fmt.Errorf("Error:Empty Keyword(line %d)", lineCount)
+					return nil, fmt.Errorf("Error:Empty Keyword(%s line %d)", fileName, lineCount)
 				}
 				word = ""
 				continue
@@ -215,7 +267,7 @@ func ReadStateFlow(fileName string) (map[State]map[Event]State, error) {
 		}
 
 		if currentType != StatusText {
-			return nil, fmt.Errorf("Error:Invalid Format in StateFlow File(line %d)", lineCount)
+			return nil, fmt.Errorf("Error:Invalid Format in StateFlow File(%s line %d)", fileName, lineCount)
 		}
 		trimmedWord := pickupWord(word)
 		if currentState != "" {
