@@ -46,6 +46,15 @@ func main() {
 	)
 	flag.Parse()
 
+	if *fpExePath == "" {
+		fmt.Println("Error:--exepath is not specified")
+		os.Exit(1)
+	}
+	if *fpStateFlow == "" {
+		fmt.Println("Error:--stateflow is not specified")
+		os.Exit(1)
+	}
+
 	execPath, err := ReadExecutionPath(*fpExePath)
 	if err != nil {
 		fmt.Println(err.Error())
@@ -57,7 +66,11 @@ func main() {
 		fmt.Println(err.Error())
 		os.Exit(1)
 	}
-	stateFlowMap, _ := CreateStateFlowMap(stateFlowPath)
+	stateFlowMap, err := CreateStateFlowMap(stateFlowPath)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
 
 	stateFlowPathSet := CreateNSwitchPathSet(stateFlowMap, 2)
 
@@ -96,7 +109,11 @@ func pickupWord(word string) string {
 }
 
 func addFlowPath(output [][]string, addPath []string) [][]string {
+	fmt.Println(output)
+
 	for _, v := range output {
+		fmt.Println("*")
+		fmt.Println(v, addPath)
 		if reflect.DeepEqual(v, addPath) {
 			return output
 		}
@@ -165,11 +182,8 @@ func ReadExecutionPath(fileName string) ([][]string, error) {
 	return exePath, nil
 }
 
-// CreateStateFlowMap creates stateflow definition data from specified file
+// CreateStateFlowMap creates stateflow definition data from path data
 func CreateStateFlowMap(flowpath [][]string) (map[State]map[Event]State, error) {
-	fmt.Println("************************************")
-	fmt.Println(flowpath)
-	fmt.Println("@@@")
 	stateMap := make(map[State]map[Event]State)
 
 	for _, targetText := range flowpath {
@@ -186,6 +200,12 @@ func CreateStateFlowMap(flowpath [][]string) (map[State]map[Event]State, error) 
 					if !init {
 						value = make(map[Event]State)
 					}
+					state, init := value[Event(currentEvent)]
+					if init {
+						if state != State(word) {
+							return nil, fmt.Errorf("Error:There are different post-transition states in pre-transition:%s & event:%s", word, currentEvent)
+						}
+					}
 					value[Event(currentEvent)] = State(word)
 					stateMap[State(currentState)] = value
 					currentEvent = ""
@@ -198,91 +218,6 @@ func CreateStateFlowMap(flowpath [][]string) (map[State]map[Event]State, error) 
 			}
 		}
 	}
-	fmt.Println("************************************")
-
-	return stateMap, nil
-}
-
-// ReadStateFlow creates stateflow definition data from specified file
-func ReadStateFlow(fileName string) (map[State]map[Event]State, error) {
-	fp, err := os.Open(fileName)
-	if err != nil {
-		panic(err)
-	}
-	sjisScanner := bufio.NewScanner(transform.NewReader(fp, japanese.ShiftJIS.NewDecoder()))
-
-	stateMap := make(map[State]map[Event]State)
-
-	lineCount := 0
-	for sjisScanner.Scan() {
-		lineCount++
-		if lineCount >= 200 {
-			return nil, fmt.Errorf("File size limitation: maximum 200 lines:%s", fileName)
-		}
-		currentState := ""
-		currentEvent := ""
-		targetText := sjisScanner.Text()
-		fmt.Println(targetText)
-		currentType := StatusText
-		word := ""
-		// Ignore blank line or line starting with #
-		if len(targetText) > 0 && targetText[0] == '#' {
-			continue
-		}
-		for _, c := range targetText {
-			if c == '-' {
-				if currentType != StatusText {
-					return nil, fmt.Errorf("Error:Invalid Format in File(%s line %d)", fileName, lineCount)
-				}
-				currentType = EventText
-				trimmedWord := pickupWord(word)
-				if len(trimmedWord) == 0 {
-					return nil, fmt.Errorf("Error:Empty Keyword(%s line %d)", fileName, lineCount)
-				}
-				if currentState != "" {
-					value, init := stateMap[State(currentState)]
-					if !init {
-						value = make(map[Event]State)
-					}
-					value[Event(currentEvent)] = State(trimmedWord)
-					stateMap[State(currentState)] = value
-				}
-				currentState = trimmedWord
-				word = ""
-				continue
-			}
-			if c == '>' {
-				if currentType != EventText {
-					return nil, fmt.Errorf("Error:Invalid Format in File(%s line %d)", fileName, lineCount)
-				}
-				currentType = StatusText
-				currentEvent = pickupWord(word)
-				if len(currentEvent) == 0 {
-					return nil, fmt.Errorf("Error:Empty Keyword(%s line %d)", fileName, lineCount)
-				}
-				word = ""
-				continue
-			}
-			word += string(c)
-		}
-
-		if currentType != StatusText {
-			return nil, fmt.Errorf("Error:Invalid Format in StateFlow File(%s line %d)", fileName, lineCount)
-		}
-		trimmedWord := pickupWord(word)
-		if currentState != "" {
-			value, init := stateMap[State(currentState)]
-			if !init {
-				value = make(map[Event]State)
-			}
-			value[Event(currentEvent)] = State(trimmedWord)
-			stateMap[State(currentState)] = value
-		}
-		currentState = pickupWord(word)
-		word = ""
-
-	}
-	defer fp.Close()
 	return stateMap, nil
 }
 
@@ -318,6 +253,7 @@ func createNSwitchPathSetRec(stackRecPath *[][]string, outputs *[][]string, m ma
 		(*stackRecPath)[*recCount] = append((*stackRecPath)[*recCount], string(targetState))
 
 		if recLimit <= *recCount {
+			fmt.Println("hit")
 			fmt.Println((*stackRecPath)[*recCount])
 			*outputs = addFlowPath(*outputs, (*stackRecPath)[*recCount])
 			(*stackRecPath)[*recCount] = (*stackRecPath)[*recCount-1]
