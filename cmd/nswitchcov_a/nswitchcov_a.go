@@ -2,11 +2,12 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"os"
 	"reflect"
 	"regexp"
-	"flag"
+
 	"golang.org/x/text/encoding/japanese"
 	"golang.org/x/text/transform"
 )
@@ -20,8 +21,7 @@ const (
 	EventText
 )
 
-
-func IncludePath(execPathSet [][]string, stateFlow []string) bool {
+func includePath(execPathSet [][]string, stateFlow []string) bool {
 	if len(stateFlow) == 0 {
 		return false
 	}
@@ -29,8 +29,8 @@ func IncludePath(execPathSet [][]string, stateFlow []string) bool {
 		if len(execPath) == 0 {
 			continue
 		}
-		for i := 0; i <= len(execPath) - len(stateFlow); i++ {
-			if reflect.DeepEqual(execPath[i:i + len(stateFlow)], stateFlow) {
+		for i := 0; i <= len(execPath)-len(stateFlow); i++ {
+			if reflect.DeepEqual(execPath[i:i+len(stateFlow)], stateFlow) {
 				fmt.Println("hit")
 				return true
 			}
@@ -39,45 +39,68 @@ func IncludePath(execPathSet [][]string, stateFlow []string) bool {
 	return false
 }
 
-/*
 func main() {
 	var (
-		fpExePath = flag.String("exepath", "", "filepath of execution path list")
+		fpExePath   = flag.String("exepath", "", "filepath of execution path list")
 		fpStateFlow = flag.String("stateflow", "", "filepath of stateflow")
-		encode = flag.String("encode", "", "encoding of input file")
+		encode      = flag.String("encode", "", "encoding of input file")
 	)
 	flag.Parse()
-	execPath := [][]string{}
-	execPath = append(execPath, []string{"s1", "e1", "s2", "e2", "s3"})
-	execPath = append(execPath, []string{"s5", "e2", "s2"})
-	stateFlow := []string {"s2", "e2", "s3"}
 
-	fmt.Println(*fpExePath, *fpStateFlow, *encode)
+	stateFlow, err := ReadStateFlow(*fpStateFlow)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
 
-	fmt.Println(IncludePath(execPath, stateFlow))
+	execPath, err := ReadExecutionPath(*fpExePath)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
 
+	stateFlowPath := CreateNSwitchPathSet(stateFlow, 2)
+
+	fmt.Println(stateFlowPath)
+	fmt.Println(execPath)
+
+	sumNSwitchPath := len(stateFlowPath)
+	lenExecPath := len(execPath)
+
+	fmt.Printf("number of execution path:%d", lenExecPath)
+	fmt.Printf("number of n-switch path:%d", sumNSwitchPath)
+
+	sumCoveringPath := 0
+
+	for _, path := range stateFlowPath {
+		if includePath(execPath, path) {
+			sumCoveringPath++
+		}
+	}
+
+	var coverage float64
+	coverage = float64(sumCoveringPath) / float64(sumNSwitchPath)
+	fmt.Printf("n-switch coverage:%f(%d/%d)", coverage, sumCoveringPath, sumNSwitchPath)
 }
-*/
-
 
 func pickupWord(word string) string {
 	re, _ := regexp.Compile("^[\\s]+")
-	trim_word := re.ReplaceAllString(word, "")
+	trimWord := re.ReplaceAllString(word, "")
 	re, _ = regexp.Compile("[\\s]+$")
-	trim_word = re.ReplaceAllString(trim_word, "")
-	return trim_word
+	trimWord = re.ReplaceAllString(trimWord, "")
+	return trimWord
 }
 
-func AddFlowPath(output [][]string, add_path []string) [][]string {
+func addFlowPath(output [][]string, addPath []string) [][]string {
 	for _, v := range output {
-		if reflect.DeepEqual(v, add_path) {
+		if reflect.DeepEqual(v, addPath) {
 			return output
 		}
 	}
-	return append(output, add_path)
+	return append(output, addPath)
 }
 
-func ReadExecutionPath(fileName string) [][]string {
+func ReadExecutionPath(fileName string) ([][]string, error) {
 
 	fp, err := os.Open(fileName)
 	if err != nil {
@@ -123,11 +146,8 @@ func ReadExecutionPath(fileName string) [][]string {
 		exePath = append(exePath, tempExePath)
 	}
 
-	fmt.Println(exePath)
-	fmt.Println("*************")
-
 	defer fp.Close()
-	return exePath
+	return exePath, nil
 }
 
 // ReadStateFlow creates stateflow definition data from specified file
@@ -139,7 +159,7 @@ func ReadStateFlow(fileName string) (map[State]map[Event]State, error) {
 	}
 	sjisScanner := bufio.NewScanner(transform.NewReader(fp, japanese.ShiftJIS.NewDecoder()))
 
-	state_map := make(map[State]map[Event]State)
+	stateMap := make(map[State]map[Event]State)
 
 	lineCount := 0
 	for sjisScanner.Scan() {
@@ -148,7 +168,7 @@ func ReadStateFlow(fileName string) (map[State]map[Event]State, error) {
 			return nil, fmt.Errorf("File size limitation: maximum 200 lines")
 		}
 		currentState := ""
-		current_event := ""
+		currentEvent := ""
 		targetText := sjisScanner.Text()
 		fmt.Println(targetText)
 		currentType := StatusText
@@ -168,12 +188,12 @@ func ReadStateFlow(fileName string) (map[State]map[Event]State, error) {
 					return nil, fmt.Errorf("Error:Empty Keyword(line %d)", lineCount)
 				}
 				if currentState != "" {
-					value, init := state_map[State(current_state)]
+					value, init := stateMap[State(current_state)]
 					if !init {
 						value = make(map[Event]State)
 					}
-					value[Event(current_event)] = State(trimmedWord)
-					state_map[State(currentState)] = value
+					value[Event(currentEvent)] = State(trimmedWord)
+					stateMap[State(currentState)] = value
 				}
 				currentState = trimmedWord
 				word = ""
@@ -184,8 +204,8 @@ func ReadStateFlow(fileName string) (map[State]map[Event]State, error) {
 					return nil, fmt.Errorf("Error:Invalid Format in StateFlow File(line %d)", lineCount)
 				}
 				currentType = StatusText
-				current_event = pickupWord(word)
-				if len(current_event) == 0 {
+				currentEvent = pickupWord(word)
+				if len(currentEvent) == 0 {
 					return nil, fmt.Errorf("Error:Empty Keyword(line %d)", lineCount)
 				}
 				word = ""
@@ -199,37 +219,19 @@ func ReadStateFlow(fileName string) (map[State]map[Event]State, error) {
 		}
 		trimmedWord := pickupWord(word)
 		if currentState != "" {
-			value, init := state_map[State(currentState)]
+			value, init := stateMap[State(currentState)]
 			if !init {
 				value = make(map[Event]State)
 			}
-			value[Event(current_event)] = State(trimmedWord)
-			state_map[State(currentState)] = value
+			value[Event(currentEvent)] = State(trimmedWord)
+			stateMap[State(currentState)] = value
 		}
 		currentState = pickupWord(word)
 		word = ""
 
 	}
 	defer fp.Close()
-	return state_map, nil
-}
-
-func main() {
-	stateFlow, err := ReadStateFlow("input.txt")
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-	stateFlowPath := CreateList(stateFlow)
-
-	//execPath := ReadExecutionPath("exe.txt")
-	//fmt.Println(execPath)
-	fmt.Println(stateFlowPath)
-
-}
-
-func CreateList(m map[State]map[Event]State) [][]string {
-	return CreateNSwitchPathSet(m, 2)
+	return stateMap, nil
 }
 
 // CreateNSwitchPathSet creates path set covering N-switch coverage
@@ -265,7 +267,7 @@ func createNSwitchPathSetRec(stackRecPath *[][]string, outputs *[][]string, m ma
 
 		if recLimit <= *recCount {
 			fmt.Println((*stackRecPath)[*recCount])
-			*outputs = AddFlowPath(*outputs, (*stackRecPath)[*recCount])
+			*outputs = addFlowPath(*outputs, (*stackRecPath)[*recCount])
 			(*stackRecPath)[*recCount] = (*stackRecPath)[*recCount-1]
 			continue
 		}
