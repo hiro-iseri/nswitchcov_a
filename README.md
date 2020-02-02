@@ -12,7 +12,7 @@ Windows 10
 
 ### ユーザガイド
 
-[ユーザガイド](docs/useerguide_jp.md)
+[ユーザガイド](docs/userguide_jp.md)
 
 #### Contact
 
