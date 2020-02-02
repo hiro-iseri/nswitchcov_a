@@ -12,13 +12,17 @@ import (
 	"golang.org/x/text/transform"
 )
 
-type TextType int
+type textType int
+
+// State of Stateflow
 type State string
+
+// Event of Stateflow
 type Event string
 
 const (
-	StatusText TextType = iota
-	EventText
+	statusText textType = iota
+	eventText
 )
 
 func includePath(execPathSet [][]string, stateFlow []string) bool {
@@ -38,68 +42,6 @@ func includePath(execPathSet [][]string, stateFlow []string) bool {
 	return false
 }
 
-func main() {
-	var (
-		fpExePath   = flag.String("exepath", "", "filepath of execution path list")
-		fpStateFlow = flag.String("stateflow", "", "filepath of stateflow")
-		//charcode    = flag.String("charcode", "", "encoding of input file")
-	)
-	flag.Parse()
-
-	if *fpExePath == "" {
-		fmt.Println("Error:--exepath is not specified")
-		os.Exit(1)
-	}
-	if *fpStateFlow == "" {
-		fmt.Println("Error:--stateflow is not specified")
-		os.Exit(1)
-	}
-
-	execPath, err := ReadExecutionPath(*fpExePath)
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-
-	stateFlowPath, err := ReadExecutionPath(*fpStateFlow)
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-	stateFlowMap, err := CreateStateFlowMap(stateFlowPath)
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-
-	stateFlowPathSet := CreateNSwitchPathSet(stateFlowMap, 2)
-
-	fmt.Println("*******map*******")
-	fmt.Println(stateFlowMap)
-	fmt.Println("*******stateflow path*******")
-	fmt.Println(stateFlowPathSet)
-	fmt.Println("*******exec path*******")
-	fmt.Println(execPath)
-
-	sumNSwitchPath := len(stateFlowPathSet)
-	lenExecPath := len(execPath)
-
-	fmt.Printf("number of execution path:%d\n", lenExecPath)
-	fmt.Printf("number of n-switch path:%d\n", sumNSwitchPath)
-
-	sumCoveringPath := 0
-
-	for _, path := range stateFlowPathSet {
-		if includePath(execPath, path) {
-			sumCoveringPath++
-		}
-	}
-
-	var coverage float64
-	coverage = float64(sumCoveringPath) / float64(sumNSwitchPath) * 100.0
-	fmt.Printf("n-switch coverage:%.2f%%(%d/%d)\n", coverage, sumCoveringPath, sumNSwitchPath)
-}
-
 func pickupWord(word string) string {
 	re, _ := regexp.Compile("^[\\s]+")
 	trimWord := re.ReplaceAllString(word, "")
@@ -109,18 +51,18 @@ func pickupWord(word string) string {
 }
 
 func addFlowPath(output [][]string, addPath []string) [][]string {
-	fmt.Println(output)
+	addCopyPath := make([]string, len(addPath))
+	copy(addCopyPath, addPath)
 
 	for _, v := range output {
-		fmt.Println("*")
-		fmt.Println(v, addPath)
 		if reflect.DeepEqual(v, addPath) {
 			return output
 		}
 	}
-	return append(output, addPath)
+	return append(output, addCopyPath)
 }
 
+// ReadExecutionPath creates stateflow path from specified file
 func ReadExecutionPath(fileName string) ([][]string, error) {
 	fp, err := os.Open(fileName)
 	if err != nil {
@@ -138,17 +80,17 @@ func ReadExecutionPath(fileName string) ([][]string, error) {
 		}
 		tempExePath := []string{}
 		targetText := sjisScanner.Text()
-		currentType := StatusText
+		currentType := statusText
 		word := ""
 		if len(targetText) > 0 && targetText[0] == '#' {
 			continue
 		}
 		for _, c := range targetText {
 			if c == '-' {
-				if currentType != StatusText {
+				if currentType != statusText {
 					return nil, fmt.Errorf("Error:Invalid Format in File(%s line %d)", fileName, lineCount)
 				}
-				currentType = EventText
+				currentType = eventText
 				trimmedWord := pickupWord(word)
 				if len(trimmedWord) == 0 {
 					return nil, fmt.Errorf("Error:Empty Keyword(%s line %d)", fileName, lineCount)
@@ -158,10 +100,10 @@ func ReadExecutionPath(fileName string) ([][]string, error) {
 				continue
 			}
 			if c == '>' {
-				if currentType != EventText {
+				if currentType != eventText {
 					return nil, fmt.Errorf("Error:Invalid Format in File(%s line %d)", fileName, lineCount)
 				}
-				currentType = StatusText
+				currentType = statusText
 				tempExePath = append(tempExePath, pickupWord(word))
 				word = ""
 				continue
@@ -169,15 +111,14 @@ func ReadExecutionPath(fileName string) ([][]string, error) {
 			word += string(c)
 		}
 
-		if currentType != StatusText {
-			return nil, fmt.Errorf("Error:Invalid Format in StateFlow File(%s line %d)", fileName, lineCount)
+		if currentType != statusText {
+			return nil, fmt.Errorf("Error:Invalid Format in File(%s line %d)", fileName, lineCount)
 		}
 		tempExePath = append(tempExePath, pickupWord(word))
 
 		exePath = append(exePath, tempExePath)
 	}
 
-	fmt.Println(exePath)
 	defer fp.Close()
 	return exePath, nil
 }
@@ -189,11 +130,11 @@ func CreateStateFlowMap(flowpath [][]string) (map[State]map[Event]State, error) 
 	for _, targetText := range flowpath {
 		currentState := ""
 		currentEvent := ""
-		currentType := StatusText
+		currentType := statusText
 
 		for _, word := range targetText {
-			if currentType == StatusText {
-				currentType = EventText
+			if currentType == statusText {
+				currentType = eventText
 
 				if currentEvent != "" {
 					value, init := stateMap[State(currentState)]
@@ -211,8 +152,8 @@ func CreateStateFlowMap(flowpath [][]string) (map[State]map[Event]State, error) 
 					currentEvent = ""
 				}
 				currentState = word
-			} else if currentType == EventText {
-				currentType = StatusText
+			} else if currentType == eventText {
+				currentType = statusText
 				currentEvent = word
 				continue
 			}
@@ -228,14 +169,12 @@ func CreateNSwitchPathSet(m map[State]map[Event]State, nValue int) [][]string {
 	recCount := 0
 
 	for k := range m {
-		fmt.Println("start0")
 		stackRecPath = [][]string{}
 		stackRecPath = append(stackRecPath, []string{})
 		stackRecPath[0] = append(stackRecPath[0], string(k))
 
 		createNSwitchPathSetRec(&stackRecPath, &outputs, m, nValue+1, &recCount, k)
 	}
-	fmt.Println(outputs)
 	return outputs
 }
 
@@ -244,7 +183,6 @@ func createNSwitchPathSetRec(stackRecPath *[][]string, outputs *[][]string, m ma
 	*recCount++
 
 	for event, targetState := range m[nextState] {
-		fmt.Println("start", *recCount, *stackRecPath)
 		if len(*stackRecPath) < *recCount+1 {
 			*stackRecPath = append(*stackRecPath, []string{})
 		}
@@ -253,8 +191,6 @@ func createNSwitchPathSetRec(stackRecPath *[][]string, outputs *[][]string, m ma
 		(*stackRecPath)[*recCount] = append((*stackRecPath)[*recCount], string(targetState))
 
 		if recLimit <= *recCount {
-			fmt.Println("hit")
-			fmt.Println((*stackRecPath)[*recCount])
 			*outputs = addFlowPath(*outputs, (*stackRecPath)[*recCount])
 			(*stackRecPath)[*recCount] = (*stackRecPath)[*recCount-1]
 			continue
@@ -267,4 +203,73 @@ func createNSwitchPathSetRec(stackRecPath *[][]string, outputs *[][]string, m ma
 		createNSwitchPathSetRec(stackRecPath, outputs, m, recLimit, recCount, targetState)
 	}
 	*recCount--
+}
+
+func nSwitchCovAMain(fpExePath string, fpStateFlow string, n int) {
+
+	execPath, err := ReadExecutionPath(fpExePath)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+
+	stateFlowPath, err := ReadExecutionPath(fpStateFlow)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+	stateFlowMap, err := CreateStateFlowMap(stateFlowPath)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+
+	stateFlowPathSet := CreateNSwitchPathSet(stateFlowMap, n)
+
+	sumNSwitchPath := len(stateFlowPathSet)
+	lenExecPath := len(execPath)
+
+	fmt.Printf("number of execution path:%d\n", lenExecPath)
+	fmt.Printf("number of n-switch path:%d\n", sumNSwitchPath)
+
+	sumCoveringPath := 0
+
+	for _, path := range stateFlowPathSet {
+		if includePath(execPath, path) {
+			sumCoveringPath++
+		}
+	}
+
+	var coverage float64
+	if sumNSwitchPath != 0 {
+		coverage = float64(sumCoveringPath) / float64(sumNSwitchPath) * 100.0
+	} else {
+		coverage = 0
+	}
+	fmt.Printf("n-switch coverage:%.2f%%(%d/%d)\n", coverage, sumCoveringPath, sumNSwitchPath)
+}
+
+func main() {
+	var (
+		fpExePath   = flag.String("exepath", "", "filepath of execution path list")
+		fpStateFlow = flag.String("stateflow", "", "filepath of stateflow")
+		nOfSwitch   = flag.Int("n", -1, "n of n-switch coverage")
+		//charcode    = flag.String("charcode", "", "encoding of input file")
+	)
+	flag.Parse()
+
+	if *fpExePath == "" {
+		fmt.Println("Error:--exepath is not specified")
+		os.Exit(1)
+	}
+	if *fpStateFlow == "" {
+		fmt.Println("Error:--stateflow is not specified")
+		os.Exit(1)
+	}
+	if *nOfSwitch < 0 {
+		fmt.Println("Error:--n（n >= 0）is not specified")
+		os.Exit(1)
+	}
+
+	nSwitchCovAMain(*fpExePath, *fpStateFlow, *nOfSwitch)
 }
