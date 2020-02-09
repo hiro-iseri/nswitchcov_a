@@ -141,3 +141,11 @@ nswitchcov_a.exe --exepath=exe.txt --stateflow=input.txt --n 2 --charcode=utf8
 nswitchcov_a.exe --exepath=exepath.txt --stateflow=stateflow.txt --n 2
 ```
 
+以下のような結果が表示されます。
+
+```
+nswitchcov_a(ver:1.01)
+number of execution path:3
+number of n-switch path:8
+n-switch coverage:25.00%(2/8)
+```
