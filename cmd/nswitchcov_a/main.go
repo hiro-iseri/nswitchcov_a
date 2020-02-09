@@ -20,6 +20,9 @@ type State string
 // Event of Stateflow
 type Event string
 
+var TargetEnv = "windows"
+var NSwitchCovAVersion = "1.00"
+
 const (
 	statusText textType = iota
 	eventText
@@ -63,23 +66,30 @@ func addFlowPath(output [][]string, addPath []string) [][]string {
 }
 
 // ReadExecutionPath creates stateflow path from specified file
-func ReadExecutionPath(fileName string) ([][]string, error) {
+func ReadExecutionPath(fileName string, encode string) ([][]string, error) {
 	fp, err := os.Open(fileName)
 	if err != nil {
 		panic(err)
 	}
-	sjisScanner := bufio.NewScanner(transform.NewReader(fp, japanese.ShiftJIS.NewDecoder()))
+	var scanner *bufio.Scanner
+	if encode == "utf8" {
+		scanner = bufio.NewScanner(fp)
+	} else if encode == "euc" {
+		scanner = bufio.NewScanner(transform.NewReader(fp, japanese.EUCJP.NewDecoder()))
+	} else {
+		scanner = bufio.NewScanner(transform.NewReader(fp, japanese.ShiftJIS.NewDecoder()))
+	}
 
 	exePath := [][]string{}
 
 	lineCount := 0
-	for sjisScanner.Scan() {
+	for scanner.Scan() {
 		lineCount++
 		if lineCount >= 200 {
 			return nil, fmt.Errorf("File size limitation: maximum 200 lines:%s", fileName)
 		}
 		tempExePath := []string{}
-		targetText := sjisScanner.Text()
+		targetText := scanner.Text()
 		currentType := statusText
 		word := ""
 		if len(targetText) > 0 && targetText[0] == '#' {
@@ -205,15 +215,14 @@ func createNSwitchPathSetRec(stackRecPath *[][]string, outputs *[][]string, m ma
 	*recCount--
 }
 
-func nSwitchCovAMain(fpExePath string, fpStateFlow string, n int) {
-
-	execPath, err := ReadExecutionPath(fpExePath)
+func nSwitchCovAMain(fpExePath string, fpStateFlow string, n int, encode string) {
+	execPath, err := ReadExecutionPath(fpExePath, encode)
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
 	}
 
-	stateFlowPath, err := ReadExecutionPath(fpStateFlow)
+	stateFlowPath, err := ReadExecutionPath(fpStateFlow, encode)
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
@@ -250,11 +259,12 @@ func nSwitchCovAMain(fpExePath string, fpStateFlow string, n int) {
 }
 
 func main() {
+	fmt.Printf("nswitchcov_a(ver:%s)\n", NSwitchCovAVersion)
 	var (
 		fpExePath   = flag.String("exepath", "", "filepath of execution path list")
 		fpStateFlow = flag.String("stateflow", "", "filepath of stateflow")
 		nOfSwitch   = flag.Int("n", -1, "n of n-switch coverage")
-		//charcode    = flag.String("charcode", "", "encoding of input file")
+		charcode    = flag.String("charcode", "", "encoding of input file")
 	)
 	flag.Parse()
 
@@ -270,6 +280,13 @@ func main() {
 		fmt.Println("Error:--n（n >= 0）is not specified")
 		os.Exit(1)
 	}
+	if *charcode == "" {
+		if TargetEnv == "darwin" {
+			*charcode = "utf8"
+		} else {
+			*charcode = "shiftjis"
+		}
+	}
 
-	nSwitchCovAMain(*fpExePath, *fpStateFlow, *nOfSwitch)
+	nSwitchCovAMain(*fpExePath, *fpStateFlow, *nOfSwitch, *charcode)
 }
