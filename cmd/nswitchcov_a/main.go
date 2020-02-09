@@ -243,6 +243,8 @@ func nSwitchCovAMain(fpExePath string, fpStateFlow string, n int, encode string)
 
 	sumCoveringPath := 0
 
+	fmt.Println(stateFlowPathSet)
+
 	for _, path := range stateFlowPathSet {
 		if includePath(execPath, path) {
 			sumCoveringPath++
@@ -284,7 +286,7 @@ func main() {
 		if TargetEnv == "darwin" {
 			*charcode = "utf8"
 		} else {
-			*charcode = "shiftjis"
+			*charcode = "utf8"
 		}
 	}
 

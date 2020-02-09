@@ -27,7 +27,7 @@ def create_release_directory(app_name, os_name)
     dict_os_name = os_name
     dict_os_name = "macosx" if os_name == "darwin"
     
-    folder_name = "#{CMD_NAME}" + "_" + dict_os_name + "_" + version
+    folder_name = "#{CMD_NAME}" + "_" + dict_os_name + "_v" + version
     FileUtils.rm_rf("#{DIST_DIR}/#{folder_name}")
     FileUtils.cp_r("#{DIST_DIR}/nswitchcov_a_env_version", "#{DIST_DIR}/#{folder_name}")
     FileUtils.mv(app_name, "#{DIST_DIR}/#{folder_name}/#{app_name}")
