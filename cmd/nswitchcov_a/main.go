@@ -21,7 +21,7 @@ type State string
 type Event string
 
 var TargetEnv = "windows"
-var NSwitchCovAVersion = "1.00"
+var NSwitchCovAVersion = "1.01"
 
 const (
 	statusText textType = iota
@@ -242,8 +242,6 @@ func nSwitchCovAMain(fpExePath string, fpStateFlow string, n int, encode string)
 	fmt.Printf("number of n-switch path:%d\n", sumNSwitchPath)
 
 	sumCoveringPath := 0
-
-	fmt.Println(stateFlowPathSet)
 
 	for _, path := range stateFlowPathSet {
 		if includePath(execPath, path) {
