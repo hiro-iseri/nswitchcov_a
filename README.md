@@ -8,7 +8,7 @@ https://github.com/hiro-iseri/nswitchcov_a/releases
 
 ### 対応環境
 
-Windows 10
+Windows 10、MacOS X
 
 ### ユーザガイド
 
