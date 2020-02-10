@@ -1,6 +1,6 @@
 # nswitchcov_a
 
-nswitchcov_aはnスイッチカバレッジ計測ツールです
+nswitchcov_aはnスイッチカバレッジを計測するテストツールです
 
 ### Download
 
