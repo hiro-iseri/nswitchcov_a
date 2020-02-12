@@ -71,6 +71,8 @@ func ReadExecutionPath(fileName string, encode string) ([][]string, error) {
 	if err != nil {
 		panic(err)
 	}
+	defer func() { _ = fp.Close() }()
+
 	var scanner *bufio.Scanner
 	if encode == "utf8" {
 		scanner = bufio.NewScanner(fp)
@@ -129,7 +131,6 @@ func ReadExecutionPath(fileName string, encode string) ([][]string, error) {
 		exePath = append(exePath, tempExePath)
 	}
 
-	defer fp.Close()
 	return exePath, nil
 }
 
