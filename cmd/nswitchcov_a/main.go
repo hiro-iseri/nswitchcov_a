@@ -20,8 +20,11 @@ type State string
 // Event of Stateflow
 type Event string
 
+// TargetEnv is execution environment specified at build
 var TargetEnv = "windows"
-var NSwitchCovAVersion = "1.01"
+
+// NSwitchCovAVersion is version of software
+var NSwitchCovAVersion = "1.02"
 
 const (
 	statusText textType = iota
@@ -45,6 +48,7 @@ func includePath(execPathSet [][]string, stateFlow []string) bool {
 	return false
 }
 
+// retrieve valid keywords from string separated by separator
 func pickupWord(word string) string {
 	re, _ := regexp.Compile("^[\\s]+")
 	trimWord := re.ReplaceAllString(word, "")
@@ -217,6 +221,11 @@ func createNSwitchPathSetRec(stackRecPath *[][]string, outputs *[][]string, m ma
 }
 
 func nSwitchCovAMain(fpExePath string, fpStateFlow string, n int, encode string) {
+	if n > 20 {
+		fmt.Println("n-value limitation: maximum 20")
+		os.Exit(1)
+	}
+
 	execPath, err := ReadExecutionPath(fpExePath, encode)
 	if err != nil {
 		fmt.Println(err.Error())
@@ -256,7 +265,7 @@ func nSwitchCovAMain(fpExePath string, fpStateFlow string, n int, encode string)
 	} else {
 		coverage = 0
 	}
-	fmt.Printf("n-switch coverage:%.2f%%(%d/%d)\n", coverage, sumCoveringPath, sumNSwitchPath)
+	fmt.Printf("%d-switch coverage:%.2f%%(%d/%d)\n", n, coverage, sumCoveringPath, sumNSwitchPath)
 }
 
 func main() {
