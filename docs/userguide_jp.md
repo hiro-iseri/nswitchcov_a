@@ -23,9 +23,15 @@ https://github.com/hiro-iseri/nswitchcov_a/releases
 
 #### 実行コマンドの例
 
+Windowsで実行する場合：
 ```
-nswitchcov_a --exepath=exepath.txt --stateflow=stateflow.txt --n 0
+nswitchcov_a.exe --exepath=exepath.txt --stateflow=stateflow.txt --n 0
 ```
+Macで実行する場合：
+```
+./nswitchcov_a --exepath=exepath.txt --stateflow=stateflow.txt --n 0
+```
+以降のコマンド例は、すべてWindowsで実行する場合の例です。Macで実行する場合は、上記を参考に読み替えてください。
 
 #### 出力結果の例
 
