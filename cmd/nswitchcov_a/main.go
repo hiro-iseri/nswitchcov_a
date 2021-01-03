@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
 
@@ -73,7 +74,7 @@ func addFlowPath(output [][]string, addPath []string) [][]string {
 func ReadExecutionPath(fileName string, encode string) ([][]string, error) {
 	fp, err := os.Open(fileName)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	defer func() { _ = fp.Close() }()
 
@@ -228,13 +229,13 @@ func nSwitchCovAMain(fpExePath string, fpStateFlow string, n int, encode string)
 
 	execPath, err := ReadExecutionPath(fpExePath, encode)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Println("Error:Cannot open file:" + fpExePath)
 		os.Exit(1)
 	}
 
 	stateFlowPath, err := ReadExecutionPath(fpStateFlow, encode)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Println("Error:Cannot open file:" + fpStateFlow)
 		os.Exit(1)
 	}
 	stateFlowMap, err := CreateStateFlowMap(stateFlowPath)
@@ -279,15 +280,31 @@ func main() {
 	flag.Parse()
 
 	if *fpExePath == "" {
-		fmt.Println("Error:--exepath is not specified")
+		fmt.Println("Error:-exepath is not specified")
 		os.Exit(1)
 	}
+	if !filepath.IsAbs(*fpExePath) {
+		lfpExePath, err := filepath.Abs(*fpExePath)
+		if err != nil {
+			fmt.Println("Error:-exepath is invalid")
+		}
+		*fpExePath = lfpExePath
+	}
+
 	if *fpStateFlow == "" {
-		fmt.Println("Error:--stateflow is not specified")
+		fmt.Println("Error:-stateflow is not specified")
 		os.Exit(1)
 	}
+	if !filepath.IsAbs(*fpStateFlow) {
+		lfpStateFlow, err := filepath.Abs(*fpStateFlow)
+		if err != nil {
+			fmt.Println("Error:-stateflow is invalid")
+		}
+		*fpStateFlow = lfpStateFlow
+	}
+
 	if *nOfSwitch < 0 {
-		fmt.Println("Error:--n（n >= 0）is not specified")
+		fmt.Println("Error:-n（n >= 0）is not specified")
 		os.Exit(1)
 	}
 	if *charcode == "" {
