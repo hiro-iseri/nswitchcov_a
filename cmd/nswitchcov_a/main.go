@@ -25,7 +25,7 @@ type Event string
 var TargetEnv = "windows"
 
 // NSwitchCovAVersion is version of software
-var NSwitchCovAVersion = "1.02"
+var NSwitchCovAVersion = "1.03"
 
 const (
 	statusText textType = iota
